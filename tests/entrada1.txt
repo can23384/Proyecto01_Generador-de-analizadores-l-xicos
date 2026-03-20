@@ -1,2 +1,3 @@
-variable   + 5 * -11 = otraVariable + 2
-variable3
+var @ -4
+
+¿ 2var 1

@@ -1,71 +1,147 @@
-from yalex_converter import yalex_regex_to_engine_regex, SPECIAL_LITERAL_MAP
+from yalex_converter import (
+    yalex_regex_to_engine_regex,
+    SPECIAL_LITERAL_MAP,
+    ANY_SYMBOL,
+    LITERAL_UNDERSCORE,
+    is_eof_rule,
+)
 from regex_engine import build_automaton_from_regex
+from errors import lexical_error
 
 
 def normalize_input_char(ch: str) -> str:
-    """
-    Convierte caracteres de entrada a los símbolos internos usados
-    por el motor de regex para literales especiales.
-    Ejemplo: '+' -> '§', '*' -> '¶'
-    """
+    if ch == "_":
+        return LITERAL_UNDERSCORE
     return SPECIAL_LITERAL_MAP.get(ch, ch)
 
 
+def step_dfa(dfa: dict, current_state: str, raw_char: str):
+    """
+    Intenta avanzar por:
+    1) transición exacta del símbolo normalizado
+    2) transición ANY_SYMBOL
+    """
+    transitions = dfa["transitions"].get(current_state, {})
+    normalized = normalize_input_char(raw_char)
+
+    if normalized in transitions:
+        return transitions[normalized]
+
+    if ANY_SYMBOL in transitions:
+        return transitions[ANY_SYMBOL]
+
+    return None
+
+
+def strip_action_braces(action: str) -> str:
+    action = action.strip()
+    if action.startswith("{") and action.endswith("}"):
+        action = action[1:-1].strip()
+    return action
+
+
+def is_skip_action(action: str) -> bool:
+    code = strip_action_braces(action).strip()
+
+    if not code:
+        return True
+
+    # Comentario estilo YALex/OCaml
+    if code.startswith("(*") and code.endswith("*)"):
+        return True
+
+    # Comentario estilo C/JS que estás usando en tus pruebas
+    if code.startswith("/*") and code.endswith("*/"):
+        return True
+
+    return False
+
+
+def infer_token_name(action: str, index: int) -> str:
+    code = strip_action_braces(action)
+
+    if not code:
+        return "SKIP"
+
+    if code.startswith("return"):
+        rest = code[len("return"):].strip()
+
+        name = []
+        for ch in rest:
+            if ch.isalnum() or ch == "_":
+                name.append(ch)
+            else:
+                break
+
+        if name:
+            return "".join(name)
+
+    return f"TOKEN_{index + 1}"
+
+
 def build_lexer(spec: dict) -> dict:
-    """
-    Construye una especificación interna del lexer:
-    - una lista de reglas
-    - cada regla con su regex original
-    - regex convertida
-    - acción
-    - prioridad
-    - AFD minimizado
-    """
     rules = []
+    eof_rule = None
 
     for idx, rule in enumerate(spec["rules"]):
-        original_regex = rule["regex"]
-        converted_regex = yalex_regex_to_engine_regex(original_regex, spec["lets"])
+        original_regex = rule["regex"].strip()
+
+        if is_eof_rule(original_regex):
+            eof_rule = {
+                "index": idx,
+                "priority": idx,
+                "token_name": infer_token_name(rule["action"], idx) if rule["action"].strip() != "{}" else "EOF",
+                "skip": is_skip_action(rule["action"]),
+                "original_regex": "eof",
+                "converted_regex": "eof",
+                "action": rule["action"],
+                "line": rule.get("line", 1),
+            }
+            continue
+
+        converted_regex = yalex_regex_to_engine_regex(
+            original_regex,
+            spec["lets"],
+            line=rule.get("line", 1),
+            lets_lines=spec.get("lets_lines", {}),
+        )
 
         result = build_automaton_from_regex(converted_regex)
         minimized_dfa = result["minimized_dfa"]
 
+        token_name = infer_token_name(rule["action"], idx)
+        skip = is_skip_action(rule["action"])
+
         rules.append({
             "index": idx,
-            "priority": idx,   # menor = mayor prioridad
+            "priority": idx,
+            "token_name": token_name,
+            "skip": skip,
             "original_regex": original_regex,
             "converted_regex": converted_regex,
             "action": rule["action"],
-            "dfa": minimized_dfa
+            "line": rule.get("line", 1),
+            "dfa": minimized_dfa,
         })
 
     return {
         "rule_name": spec["rule_name"],
-        "rules": rules
+        "rules": rules,
+        "eof_rule": eof_rule,
     }
 
 
 def match_rule(dfa: dict, text: str, start_pos: int):
-    """
-    Intenta hacer match con UNA regla desde start_pos.
-    Devuelve la longitud del match más largo aceptado.
-    Si no acepta nada, devuelve 0.
-    """
     current_state = dfa["start_state"]
     last_accept_pos = -1
 
     pos = start_pos
     while pos < len(text):
-        ch = normalize_input_char(text[pos])
-
-        if ch not in dfa["alphabet"]:
+        next_state = step_dfa(dfa, current_state, text[pos])
+        if next_state is None:
             break
 
-        state_transitions = dfa["transitions"].get(current_state, {})
-        if ch not in state_transitions:
-            break
-
-        current_state = state_transitions[ch]
+        current_state = next_state
         pos += 1
 
         if current_state in dfa["accepting_states"]:
@@ -78,9 +154,6 @@ def match_rule(dfa: dict, text: str, start_pos: int):
 
 
 def update_position(lexeme: str, line: int, col: int):
-    """
-    Actualiza línea y columna según el lexema consumido.
-    """
     for ch in lexeme:
         if ch == "\n":
             line += 1
@@ -90,14 +163,22 @@ def update_position(lexeme: str, line: int, col: int):
     return line, col
 
 
+def consume_invalid_lexeme(text: str, start_pos: int) -> int:
+    pos = start_pos
+
+    if pos >= len(text):
+        return pos
+
+    if text[pos].isspace():
+        return pos + 1
+
+    while pos < len(text) and not text[pos].isspace():
+        pos += 1
+
+    return pos
+
+
 def tokenize_text(lexer: dict, text: str):
-    """
-    Tokeniza el texto completo.
-    Aplica:
-    - longest match
-    - prioridad por orden de regla
-    - error léxico si ninguna regla acepta
-    """
     tokens = []
     errors = []
 
@@ -116,42 +197,54 @@ def tokenize_text(lexer: dict, text: str):
                 best_length = length
                 best_rule = rule
             elif length == best_length and length > 0:
-                if rule["priority"] < best_rule["priority"]:
+                if best_rule is None or rule["priority"] < best_rule["priority"]:
                     best_rule = rule
 
         if best_rule is None or best_length == 0:
-            bad_char = text[pos]
-            errors.append({
-                "line": line,
-                "column": col,
-                "char": bad_char
-            })
+            invalid_end = consume_invalid_lexeme(text, pos)
+            bad_lexeme = text[pos:invalid_end]
 
-            # avanzar un carácter para no quedar en loop
-            if bad_char == "\n":
-                line += 1
-                col = 1
-            else:
-                col += 1
-            pos += 1
+            errors.append(
+                lexical_error(
+                    line,
+                    col,
+                    "token no reconocido" if len(bad_lexeme) > 1 else "carácter no reconocido",
+                    bad_lexeme,
+                )
+            )
+
+            line, col = update_position(bad_lexeme, line, col)
+            pos = invalid_end
             continue
 
         lexeme = text[pos:pos + best_length]
 
         token_info = {
             "rule_index": best_rule["index"],
+            "token_name": best_rule["token_name"],
             "lexeme": lexeme,
             "line": line,
             "column": col,
             "action": best_rule["action"],
-            "regex": best_rule["original_regex"]
+            "regex": best_rule["original_regex"],
         }
 
-        # Si la acción es {} lo tratamos como skip
-        if best_rule["action"].strip() != "{}":
+        if not best_rule.get("skip", False):
             tokens.append(token_info)
 
         line, col = update_position(lexeme, line, col)
         pos += best_length
+
+    eof_rule = lexer.get("eof_rule")
+    if eof_rule is not None and not eof_rule.get("skip", False):
+        tokens.append({
+            "rule_index": eof_rule["index"],
+            "token_name": eof_rule["token_name"],
+            "lexeme": "",
+            "line": line,
+            "column": col,
+            "action": eof_rule["action"],
+            "regex": "eof",
+        })
 
     return tokens, errors

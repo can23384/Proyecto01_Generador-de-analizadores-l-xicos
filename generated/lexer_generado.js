@@ -10,13 +10,17 @@ const SPECIAL_LITERAL_MAP = {
   ".": "•",
   "#": "♯"
 };
+const ANY_SYMBOL = "∷";
+const LITERAL_UNDERSCORE = "⌁";
 const RULES = [
   {
     "index": 0,
     "priority": 0,
+    "token_name": "SKIP",
     "original_regex": "espacioEnBlanco",
-    "converted_regex": "((( |\t|\n))+)",
+    "converted_regex": "(( |\t|\n)+)",
     "action_code": "",
+    "skip": true,
     "dfa": {
       "alphabet": [
         "\t",
@@ -88,9 +92,11 @@ const RULES = [
   {
     "index": 1,
     "priority": 1,
+    "token_name": "TOKEN_2",
     "original_regex": "identificador",
-    "converted_regex": "(((a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z))(((a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z))|((0|1|2|3|4|5|6|7|8|9)))*)",
+    "converted_regex": "((a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z)((a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z)|(0|1|2|3|4|5|6|7|8|9))*)",
     "action_code": "console.log(\"Identificador\\n\")",
+    "skip": false,
     "dfa": {
       "alphabet": [
         "0",
@@ -572,9 +578,11 @@ const RULES = [
   {
     "index": 2,
     "priority": 2,
+    "token_name": "TOKEN_3",
     "original_regex": "numero",
-    "converted_regex": "(-?((0|1|2|3|4|5|6|7|8|9))+)",
+    "converted_regex": "(-?(0|1|2|3|4|5|6|7|8|9)+)",
     "action_code": "console.log(\"Número\\n\")",
+    "skip": false,
     "dfa": {
       "alphabet": [
         "-",
@@ -739,9 +747,11 @@ const RULES = [
   {
     "index": 3,
     "priority": 3,
+    "token_name": "TOKEN_4",
     "original_regex": "'+'",
     "converted_regex": "§",
     "action_code": "console.log(\"Operador de suma\\n\")",
+    "skip": false,
     "dfa": {
       "alphabet": [
         "§"
@@ -804,9 +814,11 @@ const RULES = [
   {
     "index": 4,
     "priority": 4,
+    "token_name": "TOKEN_5",
     "original_regex": "'*'",
     "converted_regex": "¶",
     "action_code": "console.log(\"Operador de multiplicación\\n\")",
+    "skip": false,
     "dfa": {
       "alphabet": [
         "¶"
@@ -869,9 +881,11 @@ const RULES = [
   {
     "index": 5,
     "priority": 5,
+    "token_name": "TOKEN_6",
     "original_regex": "'='",
     "converted_regex": "=",
     "action_code": "console.log(\"Operador de asignación\\n\")",
+    "skip": false,
     "dfa": {
       "alphabet": [
         "="
@@ -932,12 +946,64 @@ const RULES = [
     }
   }
 ];
+const EOF_RULE = null;
 
 
 function normalizeInputChar(ch) {
+    if (ch === "_") {
+        return LITERAL_UNDERSCORE;
+    }
+
     return Object.prototype.hasOwnProperty.call(SPECIAL_LITERAL_MAP, ch)
         ? SPECIAL_LITERAL_MAP[ch]
         : ch;
+}
+
+
+function stepDfa(dfa, currentState, rawChar) {
+    const transitions = dfa.transitions[currentState] || {};
+    const normalized = normalizeInputChar(rawChar);
+
+    if (Object.prototype.hasOwnProperty.call(transitions, normalized)) {
+        return transitions[normalized];
+    }
+
+    if (Object.prototype.hasOwnProperty.call(transitions, ANY_SYMBOL)) {
+        return transitions[ANY_SYMBOL];
+    }
+
+    return null;
+}
+
+
+function isWhitespace(ch) {
+    return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\f" || ch === "\v";
+}
+
+
+function normalizeNewlines(text) {
+    let out = "";
+    let i = 0;
+
+    while (i < text.length) {
+        const ch = text[i];
+
+        if (ch === "\r") {
+            if (i + 1 < text.length && text[i + 1] === "\n") {
+                out += "\n";
+                i += 2;
+            } else {
+                out += "\n";
+                i += 1;
+            }
+            continue;
+        }
+
+        out += ch;
+        i += 1;
+    }
+
+    return out;
 }
 
 
@@ -946,19 +1012,15 @@ function matchRule(dfa, text, startPos) {
     let lastAcceptPos = -1;
 
     let pos = startPos;
+
     while (pos < text.length) {
-        const ch = normalizeInputChar(text[pos]);
+        const nextState = stepDfa(dfa, currentState, text[pos]);
 
-        if (!dfa.alphabet.includes(ch)) {
+        if (nextState === null) {
             break;
         }
 
-        const stateTransitions = dfa.transitions[currentState] || {};
-        if (!(ch in stateTransitions)) {
-            break;
-        }
-
-        currentState = stateTransitions[ch];
+        currentState = nextState;
         pos += 1;
 
         if (dfa.accepting_states.includes(currentState)) {
@@ -983,21 +1045,42 @@ function updatePosition(lexeme, line, column) {
             column += 1;
         }
     }
+
     return { line, column };
+}
+
+
+function consumeInvalidLexeme(text, startPos) {
+    let pos = startPos;
+
+    if (pos >= text.length) {
+        return pos;
+    }
+
+    if (isWhitespace(text[pos])) {
+        return pos + 1;
+    }
+
+    while (pos < text.length && !isWhitespace(text[pos])) {
+        pos += 1;
+    }
+
+    return pos;
 }
 
 
 function runAction(actionCode, lexeme, line, column) {
     if (!actionCode || !actionCode.trim()) {
-        return;
+        return null;
     }
 
     try {
         const fn = new Function("lexeme", "lxm", "line", "column", actionCode);
-        fn(lexeme, lexeme, line, column);
+        return fn(lexeme, lexeme, line, column);
     } catch (error) {
         console.error("Error ejecutando acción:", actionCode);
         console.error(error.message);
+        return null;
     }
 }
 
@@ -1028,21 +1111,23 @@ function tokenizeText(text) {
         }
 
         if (bestRule === null || bestLength === 0) {
-            const badChar = text[pos];
+            const invalidEnd = consumeInvalidLexeme(text, pos);
+            const badLexeme = text.slice(pos, invalidEnd);
+
             errors.push({
                 line,
                 column,
-                char: badChar
+                lexeme: badLexeme,
+                formatted:
+                    `[ERROR LÉXICO] Línea ${line}, Columna ${column}: ` +
+                    `${badLexeme.length > 1 ? "token no reconocido" : "carácter no reconocido"} ` +
+                    `${JSON.stringify(badLexeme)}`
             });
 
-            if (badChar === "\n") {
-                line += 1;
-                column = 1;
-            } else {
-                column += 1;
-            }
-
-            pos += 1;
+            const updatedError = updatePosition(badLexeme, line, column);
+            line = updatedError.line;
+            column = updatedError.column;
+            pos = invalidEnd;
             continue;
         }
 
@@ -1050,6 +1135,7 @@ function tokenizeText(text) {
 
         const tokenInfo = {
             rule_index: bestRule.index,
+            token_name: bestRule.token_name,
             lexeme,
             line,
             column,
@@ -1057,8 +1143,13 @@ function tokenizeText(text) {
             action_code: bestRule.action_code
         };
 
-        if (bestRule.action_code && bestRule.action_code.trim() !== "") {
-            runAction(bestRule.action_code, lexeme, line, column);
+        const actionResult = runAction(bestRule.action_code, lexeme, line, column);
+
+        if (!bestRule.skip) {
+            if (typeof actionResult === "string" && actionResult.trim() !== "") {
+                tokenInfo.token_name = actionResult;
+            }
+
             tokens.push(tokenInfo);
         }
 
@@ -1066,6 +1157,25 @@ function tokenizeText(text) {
         line = updated.line;
         column = updated.column;
         pos += bestLength;
+    }
+
+    if (EOF_RULE && !EOF_RULE.skip) {
+        const eofResult = runAction(EOF_RULE.action_code, "", line, column);
+
+        const eofToken = {
+            rule_index: EOF_RULE.index,
+            token_name:
+                (typeof eofResult === "string" && eofResult.trim() !== "")
+                    ? eofResult
+                    : EOF_RULE.token_name,
+            lexeme: "",
+            line,
+            column,
+            regex: "eof",
+            action_code: EOF_RULE.action_code
+        };
+
+        tokens.push(eofToken);
     }
 
     return { tokens, errors };
@@ -1079,9 +1189,8 @@ function printResults(result) {
 
     for (const token of result.tokens) {
         console.log(
-            `[L${token.line}, C${token.column}] ` +
-            `lexema=${JSON.stringify(token.lexeme)} ` +
-            `regex=${token.regex}`
+            `[TOKEN] Línea ${token.line}, Columna ${token.column}: ` +
+            `${token.token_name} -> ${JSON.stringify(token.lexeme)}`
         );
     }
 
@@ -1093,10 +1202,7 @@ function printResults(result) {
         console.log("No se encontraron errores léxicos.");
     } else {
         for (const err of result.errors) {
-            console.log(
-                `[L${err.line}, C${err.column}] ` +
-                `carácter inesperado: ${JSON.stringify(err.char)}`
-            );
+            console.log(err.formatted);
         }
     }
 }
@@ -1109,11 +1215,21 @@ function main() {
     }
 
     const inputPath = process.argv[2];
-    const text = fs.readFileSync(inputPath, "utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const rawText = fs.readFileSync(inputPath, "utf8");
+    const text = normalizeNewlines(rawText);
 
     const result = tokenizeText(text);
     printResults(result);
 }
+
+
+module.exports = {
+    tokenizeText,
+    normalizeNewlines,
+    printResults,
+    RULES,
+    EOF_RULE
+};
 
 
 if (require.main === module) {

@@ -5,7 +5,7 @@ from yalex_converter import (
     LITERAL_UNDERSCORE,
     is_eof_rule,
 )
-from regex_engine import build_automaton_from_regex
+from regex_engine import regex_to_dfa
 from errors import lexical_error
 
 
@@ -248,3 +248,6 @@ def tokenize_text(lexer: dict, text: str):
         })
 
     return tokens, errors
+
+def build_automaton_from_regex(regex: str):
+    return regex_to_dfa(regex)

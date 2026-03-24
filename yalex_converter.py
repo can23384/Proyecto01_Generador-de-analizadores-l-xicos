@@ -9,7 +9,9 @@ SPECIAL_LITERAL_MAP = {
     '(': '«',
     ')': '»',
     '.': '•',
-    '#': '♯'
+    '#': '♯',
+    '"': '¨',
+    "'": '´'
 }
 
 # Símbolo interno para "_"
@@ -27,11 +29,36 @@ def decode_char(s: str) -> str:
         r"\n": "\n",
         r"\t": "\t",
         r"\r": "\r",
+        r"\b": "\b",
+        r"\f": "\f",
+        r"\v": "\v",
+        r"\0": "\0",
         r"\\": "\\",
         r"\'": "'",
-        r"\"": '"'
+        r'\"': '"'
     }
-    return mapping.get(s, s)
+    if s in mapping:
+        return mapping[s]
+    if len(s) == 2 and s.startswith('\\'):
+        return s[1]
+    return s
+
+
+def escape_engine_symbol(ch: str) -> str:
+    if ch == '\\':
+        return '\\\\'
+    if ch.isalnum():
+        return '\\' + ch
+    return ch
+
+
+def engine_literal_char(ch: str) -> str:
+    normalized = normalize_literal_char(ch)
+    return escape_engine_symbol(normalized)
+
+
+def engine_literal_sequence(text: str) -> str:
+    return ''.join(engine_literal_char(ch) for ch in text)
 
 
 def normalize_literal_char(ch: str) -> str:

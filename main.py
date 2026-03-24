@@ -1,3 +1,5 @@
+# Módulo principal: integra todo el proceso del analizador léxico
+
 from pathlib import Path
 import subprocess
 
@@ -8,6 +10,7 @@ from errors import YalexSpecError, token_message
 
 
 def escape_label(label: str) -> str:
+    # Escapa caracteres especiales para formato GraphViz/Dot
     replacements = {
         "\\": "\\\\",
         '"': '\\"',
@@ -20,6 +23,7 @@ def escape_label(label: str) -> str:
 
 
 def dfa_to_dot(dfa: dict, title: str = "DFA") -> str:
+    # Convierte un DFA a formato GraphViz para visualizar como diagrama
     states = dfa["states"]
     start_state = dfa["start_state"]
     accepting = set(dfa["accepting_states"])
@@ -27,7 +31,7 @@ def dfa_to_dot(dfa: dict, title: str = "DFA") -> str:
 
     lines = []
     lines.append("digraph DFA {")
-    lines.append("  rankdir=LR;")
+    lines.append("  rankdir=LR;")  # Disposición de izquierda a derecha
     lines.append(f'  label="{escape_label(title)}";')
     lines.append('  labelloc="t";')
     lines.append("  fontsize=20;")
@@ -35,12 +39,14 @@ def dfa_to_dot(dfa: dict, title: str = "DFA") -> str:
     lines.append("  start [shape=point];")
     lines.append(f'  start -> "{start_state}";')
 
+    # Marca estados finales con doble círculo
     for state in states:
         if state in accepting:
             lines.append(f'  "{state}" [shape=doublecircle];')
         else:
             lines.append(f'  "{state}" [shape=circle];')
 
+    # Añade las transiciones
     for src, trans in transitions.items():
         for symbol, dst in trans.items():
             label = escape_label(str(symbol))
@@ -51,6 +57,7 @@ def dfa_to_dot(dfa: dict, title: str = "DFA") -> str:
 
 
 def write_rule_diagrams(lexer: dict, output_dir: str = "generated/diagrams"):
+    # Genera archivos .dot para cada regla del lexer
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -73,6 +80,7 @@ def write_rule_diagrams(lexer: dict, output_dir: str = "generated/diagrams"):
 
 
 def render_dot_files(output_dir: str = "generated/diagrams", fmt: str = "png"):
+    # Convierte archivos .dot a imágenes usando GraphViz
     out = Path(output_dir)
     rendered = []
 
@@ -88,11 +96,14 @@ def render_dot_files(output_dir: str = "generated/diagrams", fmt: str = "png"):
 
 
 def main():
+    # Función principal: procesa el archivo YALex y genera el lexer
     yal_path = "tests/alto.yal"
     input_path = "tests/alto.txt"
 
     try:
+        # 1. Parsea el archivo YALex
         spec = parse_yalex_file(yal_path)
+        # 2. Construye el lexer con sus DFAs
         lexer = build_lexer(spec)
     except YalexSpecError as e:
         print("=" * 60)
@@ -101,12 +112,14 @@ def main():
         print(e)
         return
 
+    # Muestra las definiciones let
     print("=" * 60)
     print("DEFINICIONES LET")
     print("=" * 60)
     for name, expr in spec["lets"].items():
         print(f"{name} = {expr}")
 
+    # Muestra las reglas del lexer
     print("\n" + "=" * 60)
     print("REGLAS DEL LEXER")
     print("=" * 60)
@@ -120,11 +133,13 @@ def main():
         print("Estados    :", len(rule["dfa"]["states"]))
         print("Finales    :", rule["dfa"]["accepting_states"])
 
+    # 3. Lee el archivo de entrada y lo tokeniza
     with open(input_path, "r", encoding="utf-8") as f:
         text = f.read()
 
     tokens, errors = tokenize_text(lexer, text)
 
+    # Muestra resultados: tokens y errores
     print("\n" + "=" * 60)
     print("TOKENS ENCONTRADOS")
     print("=" * 60)
@@ -147,12 +162,14 @@ def main():
         for err in errors:
             print(err["formatted"])
 
+    # 4. Genera el lexer en JavaScript
     output_file = write_generated_lexer_js(lexer)
     print("\n" + "=" * 60)
     print("ARCHIVO GENERADO")
     print("=" * 60)
     print("Se generó:", output_file)
 
+    # 5. Crea diagramas de los DFAs
     diagram_files = write_rule_diagrams(lexer)
     print("\n" + "=" * 60)
     print("DIAGRAMAS DE ESTADOS")
@@ -160,6 +177,7 @@ def main():
     for f in diagram_files:
         print("Se generó:", f)
 
+    # 6. Intenta convertir los diagramas a imágenes
     try:
         image_files = render_dot_files(fmt="png")
         print("\n" + "=" * 60)

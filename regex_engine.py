@@ -62,6 +62,11 @@ class Node:
 # ------------------------------------------------------------
 # Tokenización
 # ------------------------------------------------------------
+# ============================================================
+# FASE 1: TOKENIZACIÓN - Convierte string a tokens
+# ============================================================
+# Convierte cadena de expresión regular a lista de tokens
+# Identifica operadores (|, *, +, ?), paréntesis y símbolos literales
 def tokenize(regex: str) -> List[Token]:
     if regex is None or regex == '':
         raise ValueError('La expresión regular no puede estar vacía.')
@@ -99,14 +104,21 @@ def tokenize(regex: str) -> List[Token]:
     return tokens
 
 
+# ============================================================
+# FASE 2: CONVERTIDOR INFIX→POSTFIJO - Algoritmo Shunting Yard
+# ============================================================
+# Verifica si un token puede ser el final de un átomo (necesita concatenación después)
 def can_end_atom(token: Token) -> bool:
     return token.type in {SYMBOL, EPSILON, RPAREN, STAR, PLUS, OPTIONAL}
 
 
+# Verifica si un token puede ser el inicio de un átomo (puede tener concatenación antes)
 def can_start_atom(token: Token) -> bool:
     return token.type in {SYMBOL, EPSILON, LPAREN}
 
 
+# Inserta operadores de concatenación explícita entre símbolos adyacentes
+# Ej: abc -> a·b·c (necesario para convertir a árbol sintáctico)
 def insert_concat(tokens: List[Token]) -> List[Token]:
     result: List[Token] = []
     for i, t1 in enumerate(tokens):
@@ -121,6 +133,11 @@ def insert_concat(tokens: List[Token]) -> List[Token]:
 # ------------------------------------------------------------
 # Infix -> postfix (Shunting Yard)
 # ------------------------------------------------------------
+# ============================================================
+# INFIX → POSTFIJO (Shunting Yard Algorithm)
+# ============================================================
+# Convierte expresión infix a postfija usando algoritmo Shunting Yard
+# Infix: a|b* → Postfija: ab*|
 def to_postfix(tokens: List[Token]) -> List[Token]:
     precedence = {
         UNION: 1,
@@ -163,6 +180,11 @@ def to_postfix(tokens: List[Token]) -> List[Token]:
 # ------------------------------------------------------------
 # Árbol sintáctico
 # ------------------------------------------------------------
+# ============================================================
+# FASE 3: CONSTRUCCIÓN DEL ÁRBOL SINTÁCTICO
+# ============================================================
+# Construye árbol sintáctico desde expresión postfija
+# Cada símbolo obtiene un número de posición para el algoritmo de construcción del AFD
 def build_syntax_tree(postfix: List[Token]):
     stack: List[Node] = []
     pos_counter = 1
@@ -210,6 +232,11 @@ def build_syntax_tree(postfix: List[Token]):
 # ------------------------------------------------------------
 # nullable, firstpos, lastpos, followpos
 # ------------------------------------------------------------
+# ============================================================
+# FASE 4: CÁLCULO DE FUNCIONES - nullable, firstpos, lastpos
+# ============================================================
+# Calcula funciones del árbol de sintaxis: nullable, firstpos, lastpos, followpos
+# Estos datos se usan para construir directamente el AFD sin generar NFA primero
 def compute_functions(node: Optional[Node], followpos: Dict[int, Set[int]]):
     if node is None:
         return
@@ -283,6 +310,11 @@ def compute_functions(node: Optional[Node], followpos: Dict[int, Set[int]]):
 # ------------------------------------------------------------
 # Construcción del AFD directo
 # ------------------------------------------------------------
+# ============================================================
+# FASE 5: CONSTRUCCIÓN DEL AFD - Método Directo de Brzozowski
+# ============================================================
+# Construye AFD directamente desde el árbol usando el método de Brzozowski
+# Cada estado represente un conjunto de posiciones (firstpos de algún nodo)
 def build_dfa(root: Node, followpos: Dict[int, Set[int]], pos_to_symbol: Dict[int, str]):
     alphabet = sorted({sym for sym in pos_to_symbol.values() if sym != '#'})
 
@@ -339,10 +371,19 @@ def build_dfa(root: Node, followpos: Dict[int, Set[int]], pos_to_symbol: Dict[in
 # ------------------------------------------------------------
 # Minimización del AFD
 # ------------------------------------------------------------
+# ============================================================
+# FASE 6: MINIMIZACIÓN DEL AFD - Particionamiento Iterativo
+# ============================================================
+# Cuenta transiciones totales en el AFD (útil para comparar antes/después minimización)
 def count_transitions(dfa):
     return sum(len(trans) for trans in dfa['transitions'].values())
 
 
+# ============================================================
+# COMPLETACIÓN Y MINIMIZACIÓN DEL AFD
+# ============================================================
+# Completa el AFD añadiendo un estado sumidero para transiciones indefinidas
+# Necesario para la minimización (requiere AFD completo)
 def complete_dfa(dfa):
     alphabet = list(dfa['alphabet'])
     transitions = {state: dict(trans) for state, trans in dfa['transitions'].items()}
@@ -387,6 +428,7 @@ def complete_dfa(dfa):
     }
 
 
+# Calcula estados alcanzables desde el estado inicial (BFS)
 def reachable_states(dfa):
     visited = set()
     queue = deque([dfa['start_state']])
@@ -404,6 +446,8 @@ def reachable_states(dfa):
     return visited
 
 
+# Minimiza el AFD usando particionamiento (algoritmo similar a Hopcroft)
+# Fusiona estados equivalentes que tienen el mismo comportamiento
 def minimize_dfa(dfa):
     completed = complete_dfa(dfa)
     reachable = reachable_states(completed)
@@ -523,6 +567,11 @@ def minimize_dfa(dfa):
 # ------------------------------------------------------------
 # Simulación del AFD
 # ------------------------------------------------------------
+# ============================================================
+# FASE 7: SIMULACIÓN DEL AFD
+# ============================================================
+# Simula el AFD: procesa una cadena símbolo a símbolo
+# Retorna True si la cadena es aceptada (termina en estado aceptante)
 def simulate_dfa(dfa, string: str) -> bool:
     current = dfa['start_state']
     for ch in string:
@@ -538,6 +587,10 @@ def simulate_dfa(dfa, string: str) -> bool:
 # ------------------------------------------------------------
 # Utilidades de impresión
 # ------------------------------------------------------------
+# ============================================================
+# UTILIDADES DE IMPRESIÓN Y DEPURACIÓN
+# ============================================================
+# Convierte lista de tokens a cadena legible (para impresión/depuración)
 def tokens_to_string(tokens: List[Token]) -> str:
     pieces = []
     for t in tokens:
@@ -550,10 +603,12 @@ def tokens_to_string(tokens: List[Token]) -> str:
     return ''.join(pieces)
 
 
+# Convierte expresión postfija a cadena espacio-separada (legibilidad)
 def postfix_to_string(postfix: List[Token]) -> str:
     return ' '.join(t.value if t.type != CONCAT else '·' for t in postfix)
 
 
+# Imprime la tabla followpos (para depuración)
 def print_followpos(followpos, pos_to_symbol):
     print('\nTabla followpos:')
     print('Posición | Símbolo | followpos')
@@ -564,6 +619,7 @@ def print_followpos(followpos, pos_to_symbol):
         print(f"{pos:^8} | {pos_to_symbol[pos]:^7} | {sorted(followpos.get(pos, set()))}")
 
 
+# Imprime mapeo posición→símbolo (para depuración)
 def print_positions(pos_to_symbol):
     print('\nPosiciones de hojas:')
     print('Posición | Símbolo')
@@ -572,6 +628,7 @@ def print_positions(pos_to_symbol):
         print(f"{pos:^8} | {pos_to_symbol[pos]:^7}")
 
 
+# Imprime propiedades del árbol de sintaxis (nullable, firstpos, lastpos)
 def print_syntax_info(root):
     print('\nFunciones de la raíz:')
     print(f'nullable : {root.nullable}')
@@ -579,12 +636,14 @@ def print_syntax_info(root):
     print(f'lastpos  : {sorted(root.lastpos)}')
 
 
+# Genera clave de ordenamiento para estados (ordena alfabético+numérico)
 def _state_sort_key(name: str):
     letters = ''.join(ch for ch in name if ch.isalpha())
     digits = ''.join(ch for ch in name if ch.isdigit())
     return (letters, int(digits) if digits else 0, name)
 
 
+# Imprime tabla de transiciones del AFD en formato tabular
 def print_dfa_table(dfa, title='Tabla de transición del AFD'):
     alphabet = dfa['alphabet']
     transitions = dfa['transitions']
@@ -609,6 +668,7 @@ def print_dfa_table(dfa, title='Tabla de transición del AFD'):
         print(' | '.join(row))
 
 
+# Imprime qué conjunto de posiciones representa cada estado del AFD directo
 def print_direct_state_sets(dfa):
     print('\nConjuntos que representa cada estado del AFD directo:')
     inv = {v: k for k, v in dfa['state_ids'].items()}
@@ -616,12 +676,14 @@ def print_direct_state_sets(dfa):
         print(f'{state_name} = {sorted(inv[state_name])}')
 
 
+# Imprime particiones/clases de equivalencia del AFD minimizado
 def print_minimized_partitions(min_dfa):
     print('\nParticiones / equivalencias del AFD minimizado:')
     for index, part in enumerate(min_dfa['partitions']):
         print(f'M{index} = {part}')
 
 
+# Compara estadísticas del AFD original vs minimizado
 def print_comparison(dfa_directo, dfa_minimizado):
     estados_directo = len(dfa_directo['transitions'])
     trans_directo = count_transitions(dfa_directo)
@@ -641,19 +703,26 @@ def print_comparison(dfa_directo, dfa_minimizado):
         print('Resultado: la minimización redujo el autómata.')
 
 
-# ------------------------------------------------------------
-# Proceso completo
-# ------------------------------------------------------------
+
+# ============================================================
+# ORQUESTACI\u00d3N COMPLETA: Expresi\u00f3n Regular → AFD Minimizado
+# ============================================================
+# Convierte expresi\u00f3n regular a AFD minimalizado
+# Orquesta todo el pipeline: tokenizar → postfijo → árbol → cálculo funciones → AFD → minimizar
 def regex_to_dfa(regex: str):
     tokens = tokenize(regex)
     tokens_with_concat = insert_concat(tokens)
 
+    # Aumenta la expresión con paréntesis externos y marcador de fin
     augmented_tokens = [Token(LPAREN, '(')] + tokens_with_concat + [Token(RPAREN, ')'), Token(CONCAT, '·'), Token(ENDMARK, '#')]
     postfix = to_postfix(augmented_tokens)
     root, pos_to_symbol = build_syntax_tree(postfix)
 
+    # Calcula propiedades del árbol
     followpos = {pos: set() for pos in pos_to_symbol}
     compute_functions(root, followpos)
+    
+    # Construye y minimiza el AFD
     dfa = build_dfa(root, followpos, pos_to_symbol)
     minimized_dfa = minimize_dfa(dfa)
 

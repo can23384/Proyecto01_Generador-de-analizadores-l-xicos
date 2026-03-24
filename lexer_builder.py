@@ -1,3 +1,5 @@
+# Módulo de construcción del lexer: convierte especificación YALex en un AFD funcional
+
 from yalex_converter import (
     yalex_regex_to_engine_regex,
     SPECIAL_LITERAL_MAP,
@@ -11,17 +13,15 @@ from token_utils import infer_token_name as infer_token_name_from_rule
 
 
 def normalize_input_char(ch: str) -> str:
+    # Normaliza un carácter de entrada usando el mapa especial
     if ch == "_":
         return LITERAL_UNDERSCORE
     return SPECIAL_LITERAL_MAP.get(ch, ch)
 
 
 def step_dfa(dfa: dict, current_state: str, raw_char: str):
-    """
-    Intenta avanzar por:
-    1) transición exacta del símbolo normalizado
-    2) transición ANY_SYMBOL
-    """
+    # Avanza un estado en el DFA leyendo un carácter
+    # Intenta 1) transición exacta 2) transición ANY_SYMBOL (comodín)
     transitions = dfa["transitions"].get(current_state, {})
     normalized = normalize_input_char(raw_char)
 
@@ -35,6 +35,7 @@ def step_dfa(dfa: dict, current_state: str, raw_char: str):
 
 
 def strip_action_braces(action: str) -> str:
+    # Extrae el contenido de { }
     action = action.strip()
     if action.startswith("{") and action.endswith("}"):
         action = action[1:-1].strip()
@@ -42,16 +43,17 @@ def strip_action_braces(action: str) -> str:
 
 
 def is_skip_action(action: str) -> bool:
+    # Detecta si una acción debe ser ignorada (comentario vacío)
     code = strip_action_braces(action).strip()
 
     if not code:
         return True
 
-    # Comentario estilo YALex/OCaml
+    # Comentario estilo OCaml (* ... *)
     if code.startswith("(*") and code.endswith("*)"):
         return True
 
-    # Comentario estilo C/JS que estás usando en tus pruebas
+    # Comentario estilo C /* ... */
     if code.startswith("/*") and code.endswith("*/"):
         return True
 
@@ -59,12 +61,14 @@ def is_skip_action(action: str) -> bool:
 
 
 def build_lexer(spec: dict) -> dict:
+    # Construye el lexer a partir de la especificación YALex
     rules = []
     eof_rule = None
 
     for idx, rule in enumerate(spec["rules"]):
         original_regex = rule["regex"].strip()
 
+        # Maneja la regla especial EOF
         if is_eof_rule(original_regex):
             eof_rule = {
                 "index": idx,
@@ -78,6 +82,7 @@ def build_lexer(spec: dict) -> dict:
             }
             continue
 
+        # Convierte la regex YALex a formato compatible con el motor
         converted_regex = yalex_regex_to_engine_regex(
             original_regex,
             spec["lets"],
@@ -85,6 +90,7 @@ def build_lexer(spec: dict) -> dict:
             lets_lines=spec.get("lets_lines", {}),
         )
 
+        # Construye el AFD para esta regla
         result = build_automaton_from_regex(converted_regex)
         minimized_dfa = result["minimized_dfa"]
 
@@ -93,7 +99,7 @@ def build_lexer(spec: dict) -> dict:
 
         rules.append({
             "index": idx,
-            "priority": idx,
+            "priority": idx,  # Prioridad en caso de conflicto
             "token_name": token_name,
             "skip": skip,
             "original_regex": original_regex,
@@ -111,6 +117,7 @@ def build_lexer(spec: dict) -> dict:
 
 
 def match_rule(dfa: dict, text: str, start_pos: int):
+    # Intenta hacer coincidir una regla desde una posición en el texto
     current_state = dfa["start_state"]
     last_accept_pos = -1
 
@@ -123,6 +130,7 @@ def match_rule(dfa: dict, text: str, start_pos: int):
         current_state = next_state
         pos += 1
 
+        # Registra la última posición de aceptación
         if current_state in dfa["accepting_states"]:
             last_accept_pos = pos
 
@@ -133,6 +141,7 @@ def match_rule(dfa: dict, text: str, start_pos: int):
 
 
 def update_position(lexeme: str, line: int, col: int):
+    # Actualiza línea y columna después de leer un lexema
     for ch in lexeme:
         if ch == "\n":
             line += 1
@@ -143,12 +152,14 @@ def update_position(lexeme: str, line: int, col: int):
 
 
 def consume_invalid_lexeme(text: str, start_pos: int) -> int:
+    # Lee un carácter inválido
     if start_pos >= len(text):
         return start_pos
     return start_pos + 1
 
 
 def tokenize_text(lexer: dict, text: str):
+    # Tokeniza el texto completo usando las reglas del lexer
     tokens = []
     errors = []
 
@@ -157,19 +168,23 @@ def tokenize_text(lexer: dict, text: str):
     col = 1
 
     while pos < len(text):
+        # Busca la mejor regla que coincida
         best_rule = None
         best_length = 0
 
         for rule in lexer["rules"]:
             length = match_rule(rule["dfa"], text, pos)
 
+            # Elige la coincidencia más larga
             if length > best_length:
                 best_length = length
                 best_rule = rule
+            # En caso de empate, elige por prioridad
             elif length == best_length and length > 0:
                 if best_rule is None or rule["priority"] < best_rule["priority"]:
                     best_rule = rule
 
+        # Si no hay coincidencia, es un error
         if best_rule is None or best_length == 0:
             invalid_end = consume_invalid_lexeme(text, pos)
             bad_lexeme = text[pos:invalid_end]
@@ -187,6 +202,7 @@ def tokenize_text(lexer: dict, text: str):
             pos = invalid_end
             continue
 
+        # Se encontró una coincidencia
         lexeme = text[pos:pos + best_length]
 
         token_info = {
@@ -199,12 +215,14 @@ def tokenize_text(lexer: dict, text: str):
             "regex": best_rule["original_regex"],
         }
 
+        # Añade el token si no debe saltarse
         if not best_rule.get("skip", False):
             tokens.append(token_info)
 
         line, col = update_position(lexeme, line, col)
         pos += best_length
 
+    # Añade token EOF si está definido
     eof_rule = lexer.get("eof_rule")
     if eof_rule is not None and not eof_rule.get("skip", False):
         tokens.append({
@@ -221,4 +239,5 @@ def tokenize_text(lexer: dict, text: str):
 
 
 def build_automaton_from_regex(regex: str):
+    # Construye un AFD a partir de una expresión regular
     return regex_to_dfa(regex)

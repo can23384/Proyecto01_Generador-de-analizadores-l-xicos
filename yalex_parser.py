@@ -1,25 +1,35 @@
+# Módulo de parsing YALex: analiza archivos de especificación YALex
+
 from errors import YalexSpecError
 
 
+# === UTILIDADES DE POSICIÓN ===
+
 def line_col_from_pos(text: str, pos: int):
+    # Calcula línea y columna a partir de posición en el texto
     line = text.count("\n", 0, pos) + 1
     last_nl = text.rfind("\n", 0, pos)
     column = pos + 1 if last_nl == -1 else pos - last_nl
     return line, column
 
 
+# === PREPROCESAMIENTO ===
+
 def remove_comments_preserve_lines(text: str) -> str:
+    # Elimina comentarios (* ... *) manteniendo líneas en blanco
     out = []
     i = 0
     n = len(text)
 
     while i < n:
+        # Detecta inicio de comentario (* 
         if i + 1 < n and text[i] == "(" and text[i + 1] == "*":
             start = i
             out.append(" ")
             out.append(" ")
             i += 2
 
+            # Busca fin de comentario *)
             while i + 1 < n and not (text[i] == "*" and text[i + 1] == ")"):
                 out.append("\n" if text[i] == "\n" else " ")
                 i += 1
@@ -39,16 +49,21 @@ def remove_comments_preserve_lines(text: str) -> str:
     return "".join(out)
 
 
+# === UTILIDADES DE PARSING ===
+
 def skip_ws(text: str, pos: int) -> int:
+    # Salta espacios en blanco
     while pos < len(text) and text[pos].isspace():
         pos += 1
     return pos
 
 
 def startswith_word(text: str, pos: int, word: str) -> bool:
+    # Verifica si hay una palabra completa (no parte de un identificador)
     if not text.startswith(word, pos):
         return False
 
+    # Verifica límites de palabra
     before_ok = pos == 0 or not (text[pos - 1].isalnum() or text[pos - 1] == "_")
     after = pos + len(word)
     after_ok = after >= len(text) or not (text[after].isalnum() or text[after] == "_")
@@ -56,6 +71,7 @@ def startswith_word(text: str, pos: int, word: str) -> bool:
 
 
 def read_line(text: str, pos: int):
+    # Lee una línea completa desde pos hasta \n
     end = text.find("\n", pos)
     if end == -1:
         end = len(text)
@@ -63,6 +79,7 @@ def read_line(text: str, pos: int):
 
 
 def is_line_prefix_symbol(text: str, pos: int, symbol: str) -> bool:
+    # Verifica si símbolo está al inicio de línea (solo espacios antes)
     if pos >= len(text) or text[pos] != symbol:
         return False
 
@@ -74,7 +91,10 @@ def is_line_prefix_symbol(text: str, pos: int, symbol: str) -> bool:
     return True
 
 
+# === PARSING DE ESTRUCTURAS ===
+
 def parse_brace_block(text: str, pos: int):
+    # Parsea un bloque de código entre llaves { ... }
     if pos >= len(text) or text[pos] != "{":
         line, col = line_col_from_pos(text, pos)
         raise YalexSpecError(line, col, "se esperaba '{'.")
@@ -86,6 +106,7 @@ def parse_brace_block(text: str, pos: int):
     while pos < len(text):
         ch = text[pos]
 
+        # Maneja caracteres dentro de comillas (escapados)
         if quote is not None:
             if ch == "\\" and pos + 1 < len(text):
                 pos += 2
@@ -95,11 +116,13 @@ def parse_brace_block(text: str, pos: int):
             pos += 1
             continue
 
+        # Detecta inicio de comilla
         if ch in ("'", '"'):
             quote = ch
             pos += 1
             continue
 
+        # Cuenta llaves
         if ch == "{":
             depth += 1
         elif ch == "}":
@@ -114,6 +137,7 @@ def parse_brace_block(text: str, pos: int):
 
 
 def parse_header_or_trailer(text: str, pos: int):
+    # Parsea el bloque opcional de código al inicio o fin
     pos = skip_ws(text, pos)
     if pos < len(text) and text[pos] == "{":
         return parse_brace_block(text, pos)
@@ -121,6 +145,7 @@ def parse_header_or_trailer(text: str, pos: int):
 
 
 def parse_let_line(text: str, pos: int):
+    # Parsea una línea "let nombre = expresión"
     line_no, col_no = line_col_from_pos(text, pos)
     raw_line, end = read_line(text, pos)
     stripped = raw_line.strip()
@@ -148,6 +173,7 @@ def parse_let_line(text: str, pos: int):
 
 
 def parse_rule_signature(text: str, pos: int):
+    # Parsea la firma "rule nombre" o "rule nombre [args]"
     line_no, col_no = line_col_from_pos(text, pos)
     eq_pos = text.find("=", pos)
 
@@ -165,6 +191,7 @@ def parse_rule_signature(text: str, pos: int):
     rule_name = rest
     rule_args = []
 
+    # Busca argumentos entre [ ]
     lb = rest.find("[")
     rb = rest.rfind("]")
     if lb != -1 and rb != -1 and rb > lb:
@@ -183,6 +210,7 @@ def parse_rule_signature(text: str, pos: int):
 
 
 def parse_rule_entries(text: str, pos: int):
+    # Parsea las reglas: regex { acción }
     rules = []
     n = len(text)
 
@@ -191,9 +219,11 @@ def parse_rule_entries(text: str, pos: int):
         if pos >= n:
             break
 
+        # Si encuentra { al inicio de línea, fin de reglas
         if text[pos] == "{" and is_line_prefix_symbol(text, pos, "{"):
             break
 
+        # Salta | opcional
         if text[pos] == "|":
             pos += 1
             pos = skip_ws(text, pos)
@@ -209,9 +239,11 @@ def parse_rule_entries(text: str, pos: int):
         action = "{}"
         quote = None
 
+        # Lee regex hasta encontrar { o | o fin de línea
         while pos < n:
             ch = text[pos]
 
+            # Maneja caracteres dentro de comillas
             if quote is not None:
                 regex_chars.append(ch)
                 if ch == "\\" and pos + 1 < n:
@@ -223,19 +255,23 @@ def parse_rule_entries(text: str, pos: int):
                 pos += 1
                 continue
 
+            # Detecta inicio de comilla
             if ch in ("'", '"'):
                 quote = ch
                 regex_chars.append(ch)
                 pos += 1
                 continue
 
+            # Detecta acción { }
             if ch == "{":
                 action, pos = parse_brace_block(text, pos)
                 break
 
+            # Detecta siguiente regla |
             if ch == "|" and is_line_prefix_symbol(text, pos, "|"):
                 break
 
+            # Fin de línea
             if ch == "\n":
                 pos += 1
                 break
@@ -253,6 +289,7 @@ def parse_rule_entries(text: str, pos: int):
             "line": entry_line,
         })
 
+        # Salta hasta fin de línea
         while pos < n and text[pos] not in "\n":
             pos += 1
         if pos < n and text[pos] == "\n":
@@ -261,12 +298,17 @@ def parse_rule_entries(text: str, pos: int):
     return rules, pos
 
 
+# === PARSEO PRINCIPAL ===
+
 def parse_yalex(text: str) -> dict:
+    # Parsea un archivo YALex completo
     clean = remove_comments_preserve_lines(text)
     pos = 0
 
+    # Header opcional
     header, pos = parse_header_or_trailer(clean, pos)
 
+    # Definiciones let
     lets = {}
     lets_lines = {}
 
@@ -284,6 +326,7 @@ def parse_yalex(text: str) -> dict:
 
         break
 
+    # Necesita sección rule
     pos = skip_ws(clean, pos)
     if pos >= len(clean) or not startswith_word(clean, pos, "rule"):
         line, col = line_col_from_pos(clean, pos)
@@ -294,16 +337,19 @@ def parse_yalex(text: str) -> dict:
             "La especificación debe contener al menos una regla de análisis léxico.",
         )
 
+    # Parsea firma de rule
     signature = parse_rule_signature(clean, pos)
     rule_name = signature["rule_name"]
     rule_args = signature["rule_args"]
     pos = signature["next_pos"]
 
+    # Parsea reglas léxicas
     rules, pos = parse_rule_entries(clean, pos)
     if not rules:
         line, col = line_col_from_pos(clean, pos)
         raise YalexSpecError(line, col, "la sección rule no contiene reglas válidas.")
 
+    # Trailer opcional
     trailer, pos = parse_header_or_trailer(clean, pos)
 
     return {
@@ -318,5 +364,6 @@ def parse_yalex(text: str) -> dict:
 
 
 def parse_yalex_file(path: str) -> dict:
+    # Lee y parsea un archivo YALex
     with open(path, "r", encoding="utf-8") as f:
         return parse_yalex(f.read())

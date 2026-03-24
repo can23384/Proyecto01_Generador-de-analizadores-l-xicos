@@ -208,21 +208,11 @@ function updatePosition(lexeme, line, column) {
 
 
 function consumeInvalidLexeme(text, startPos) {
-    let pos = startPos;
-
-    if (pos >= text.length) {
-        return pos;
+    if (startPos >= text.length) {
+        return startPos;
     }
 
-    if (isWhitespace(text[pos])) {
-        return pos + 1;
-    }
-
-    while (pos < text.length && !isWhitespace(text[pos])) {
-        pos += 1;
-    }
-
-    return pos;
+    return startPos + 1;
 }
 
 

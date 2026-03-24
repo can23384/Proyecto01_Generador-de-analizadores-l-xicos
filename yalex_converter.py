@@ -703,7 +703,7 @@ def replace_wildcard_underscore(regex: str) -> str:
     return "".join(out)
 
 
-def expand_remaining_definitions(regex: str, definitions: dict, *, lets_lines=None, cache=None, stack=None) -> str:
+def expand_remaining_definitions(regex: str, definitions: dict, *, line: int = 1, lets_lines=None, cache=None, stack=None) -> str:
     """
     Expande identificadores let que sigan presentes.
     """
@@ -739,6 +739,12 @@ def expand_remaining_definitions(regex: str, definitions: dict, *, lets_lines=No
             i += 1
             continue
 
+        if ch == "\\" and i + 1 < len(regex):
+            out.append(ch)
+            out.append(regex[i + 1])
+            i += 2
+            continue
+
         if ch.isalpha() or ch == "_":
             j = i + 1
             while j < len(regex) and (regex[j].isalnum() or regex[j] == "_"):
@@ -761,7 +767,12 @@ def expand_remaining_definitions(regex: str, definitions: dict, *, lets_lines=No
                 )
                 out.append(f"({normalized})")
             else:
-                out.append(name)
+                raise YalexSpecError(
+                    line,
+                    1,
+                    f"identificador no definido: '{name}'.",
+                    f"Defina 'let {name} = ...' antes de usarlo en una regla o definición.",
+                )
 
             i = j
             continue

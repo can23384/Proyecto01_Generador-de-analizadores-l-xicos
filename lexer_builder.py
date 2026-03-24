@@ -7,6 +7,7 @@ from yalex_converter import (
 )
 from regex_engine import regex_to_dfa
 from errors import lexical_error
+from token_utils import infer_token_name as infer_token_name_from_rule
 
 
 def normalize_input_char(ch: str) -> str:
@@ -57,28 +58,6 @@ def is_skip_action(action: str) -> bool:
     return False
 
 
-def infer_token_name(action: str, index: int) -> str:
-    code = strip_action_braces(action)
-
-    if not code:
-        return "SKIP"
-
-    if code.startswith("return"):
-        rest = code[len("return"):].strip()
-
-        name = []
-        for ch in rest:
-            if ch.isalnum() or ch == "_":
-                name.append(ch)
-            else:
-                break
-
-        if name:
-            return "".join(name)
-
-    return f"TOKEN_{index + 1}"
-
-
 def build_lexer(spec: dict) -> dict:
     rules = []
     eof_rule = None
@@ -90,7 +69,7 @@ def build_lexer(spec: dict) -> dict:
             eof_rule = {
                 "index": idx,
                 "priority": idx,
-                "token_name": infer_token_name(rule["action"], idx) if rule["action"].strip() != "{}" else "EOF",
+                "token_name": infer_token_name_from_rule(original_regex, rule["action"], idx) if rule["action"].strip() != "{}" else "EOF",
                 "skip": is_skip_action(rule["action"]),
                 "original_regex": "eof",
                 "converted_regex": "eof",
@@ -109,7 +88,7 @@ def build_lexer(spec: dict) -> dict:
         result = build_automaton_from_regex(converted_regex)
         minimized_dfa = result["minimized_dfa"]
 
-        token_name = infer_token_name(rule["action"], idx)
+        token_name = infer_token_name_from_rule(original_regex, rule["action"], idx)
         skip = is_skip_action(rule["action"])
 
         rules.append({
@@ -164,18 +143,9 @@ def update_position(lexeme: str, line: int, col: int):
 
 
 def consume_invalid_lexeme(text: str, start_pos: int) -> int:
-    pos = start_pos
-
-    if pos >= len(text):
-        return pos
-
-    if text[pos].isspace():
-        return pos + 1
-
-    while pos < len(text) and not text[pos].isspace():
-        pos += 1
-
-    return pos
+    if start_pos >= len(text):
+        return start_pos
+    return start_pos + 1
 
 
 def tokenize_text(lexer: dict, text: str):
@@ -248,6 +218,7 @@ def tokenize_text(lexer: dict, text: str):
         })
 
     return tokens, errors
+
 
 def build_automaton_from_regex(regex: str):
     return regex_to_dfa(regex)

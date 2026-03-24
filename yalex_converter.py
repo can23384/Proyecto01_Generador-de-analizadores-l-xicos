@@ -535,10 +535,12 @@ def _parse_set_atom_at(text: str, pos: int, definitions: dict, *, line: int, let
             chars = _parse_set_expr(fragment, definitions, line=line, lets_lines=lets_lines)
             return chars, end + 1
 
-        if ch == "'":
-            value, end, _ = _read_quoted(text, pos, "'")
+        if ch in ("'", '"'):
+            value, end, _ = _read_quoted(text, pos, ch)
             if value is None:
-                _raise_spec_error(line, text, text[pos:], "literal sin cerrar.")
+                if ch == "'":
+                    _raise_spec_error(line, text, text[pos:], "literal sin cerrar.")
+                _raise_spec_error(line, text, text[pos:], "cadena sin cerrar.")
             fragment = text[pos:end]
             chars = _parse_set_expr(fragment, definitions, line=line, lets_lines=lets_lines)
             return chars, end

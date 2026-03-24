@@ -21,20 +21,29 @@ def convert_action_to_js(action: str) -> str:
     if not action:
         return ""
 
-    # Comentarios usados para skip
     if action.startswith("/*") and action.endswith("*/"):
         return ""
 
     if action.startswith("(*") and action.endswith("*)"):
         return ""
 
-    # print(...) de Python -> console.log(...)
     if action.startswith("print(") and action.endswith(")"):
         return "console.log" + action[len("print"):]
 
-    # Convierte: return TOKEN   ->   return "TOKEN";
     if action.startswith("return"):
         rest = action[len("return"):].strip()
+
+        if rest.startswith(('"', "'")):
+            quote = rest[0]
+            end = 1
+            while end < len(rest):
+                if rest[end] == '\\' and end + 1 < len(rest):
+                    end += 2
+                    continue
+                if rest[end] == quote:
+                    literal = rest[1:end]
+                    return f'return {json.dumps(literal)};'
+                end += 1
 
         token_chars = []
         for ch in rest:

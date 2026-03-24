@@ -842,6 +842,7 @@ def yalex_regex_to_engine_regex(regex: str, definitions: dict, *, line: int = 1,
     regex = expand_remaining_definitions(
         regex,
         definitions,
+        line=line,
         lets_lines=lets_lines,
         cache=cache,
         stack=stack,

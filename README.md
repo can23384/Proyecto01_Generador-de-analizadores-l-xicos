@@ -1,230 +1,287 @@
-<div align="center">
+# Proyecto 01 - Generador de analizadores léxicos
 
-# ⚙️ Generador de Analizadores Léxicos
-
-### Proyecto 01 - Implementación de un generador de analizadores léxicos usando YALex
-
-![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-Lexer_Generado-yellow?logo=javascript&logoColor=black)
-
-
-*Herramienta capaz de leer una especificación en YALex, construir los autómatas correspondientes y generar un analizador léxico funcional e independiente.*
-
-
-
-</div>
-
----
-
-## 📋 Tabla de Contenidos
-
-- [Descripción General](#-descripción-general)
-- [Características Principales](#-características-principales)
-- [Objetivos del Proyecto](#-objetivos-del-proyecto)
-- [Tecnologías Utilizadas](#-tecnologías-utilizadas)
-- [Estructura del Proyecto](#-estructura-del-proyecto)
-- [Ejecución del Proyecto](#-ejecución-del-proyecto)
-- [Flujo de Funcionamiento](#-flujo-de-funcionamiento)
-- [Pruebas Formales](#-pruebas-formales)
-- [Salida Generada](#-salida-generada)
-- [Restricciones Cumplidas](#-restricciones-cumplidas)
-- [Integrantes](#-integrantes)
-- [Repositorio](#-repositorio)
-
----
-
-## 🧠 Descripción General
-
-Este proyecto consiste en la implementación de un **generador de analizadores léxicos**.  
-El sistema toma como entrada un archivo escrito en **YALex** y produce como salida:
-
-1. La construcción de los **autómatas finitos deterministas (AFD)** correspondientes a las reglas léxicas.
-2. La generación de un archivo fuente llamado `lexer_generado.js`, el cual funciona como un **analizador léxico independiente**.
-3. La impresión en pantalla de los **tokens reconocidos** y, en caso de existir, los **errores léxicos detectados**.
-4. La generación de **diagramas de transición de estados** para visualizar cada regla del lexer.
-
-El proyecto fue desarrollado aplicando teoría de **expresiones regulares**, **construcción directa de AFD**, **minimización de autómatas** y **análisis léxico**.
-
----
-
-## ✨ Características Principales
-
-### 📄 Lectura de especificaciones YALex
-- Soporte para definiciones `let`
-- Soporte para reglas `rule`
-- Expansión de definiciones dentro de otras expresiones
-- Manejo de operadores léxicos y precedencia
-
-### 🤖 Construcción de autómatas
-- Conversión de expresiones YALex a una representación interna
-- Construcción de árbol sintáctico de regex
-- Cálculo de `nullable`, `firstpos`, `lastpos` y `followpos`
-- Construcción directa de AFD
-- Minimización del autómata resultante
-
-### 🔎 Análisis léxico
-- Reconocimiento de tokens válidos
-- Detección de errores léxicos
-- Aplicación de la regla de **máximo lexema válido**
-- Desempate por **prioridad según orden de definición**
-- Soporte para reglas `skip`, como espacios y saltos de línea
-
-### 📦 Generación automática
-- Generación automática de `lexer_generado.js`
-- El lexer generado funciona de forma **independiente del generador**
-- Exportación de diagramas de estados en formato `.dot` y `.png`
-
----
-
-## 🎯 Objetivos del Proyecto
-
-### Objetivo general
-Implementar un generador de analizadores léxicos funcional basado en especificaciones escritas en YALex.
-
-### Objetivos específicos
-- Aplicar la teoría de analizadores léxicos en una herramienta de software.
-- Implementar un generador capaz de construir analizadores léxicos funcionales.
-- Utilizar autómatas finitos como base para el reconocimiento léxico.
-- Producir un lexer independiente capaz de analizar nuevos archivos de entrada.
-
----
-
-## 🛠 Tecnologías Utilizadas
-
-### Lenguajes
-- **Python** para la construcción del generador
-- **JavaScript** para el lexer generado
-
-### Conceptos teóricos aplicados
-- Expresiones regulares
-- Árboles sintácticos
-- Construcción directa de AFD
-- Minimización de AFD
-- Análisis léxico
-- Regla de longest match
-- Prioridad por orden de reglas
-
-### Herramientas
-- **Graphviz** para la generación de diagramas de estados
-- **Node.js** para ejecutar el lexer generado
-- **GitHub** para control de versiones
-
----
-
-## 📁 Estructura del Proyecto
-
-```bash
-Proyecto01_Generador-de-analizadores-lexicos/
-├── codegen.py                  # Generación del lexer en JavaScript
-├── errors.py                   # Manejo de errores y mensajes
-├── lexer_builder.py            # Construcción del lexer y tokenización
-├── main.py                     # Punto de entrada principal
-├── regex_engine.py             # Construcción y minimización de AFD
-├── token_utils.py              # Utilidades para nombres y tokens
-├── yalex_converter.py          # Conversión de YALex a regex interna
-├── yalex_parser.py             # Parser del archivo YALex
-│
-├── generated/
-│   ├── lexer_generado.js       # Lexer generado automáticamente
-│   └── diagrams/               # Diagramas de estados generados
-│
-├── tests/                      # Archivos de prueba
-│   ├── Ejemplo_basico.yal
-│   └── entrada1.txt
-```
-
----
-
-## ▶️ Ejecución del Proyecto
-
-### 1. Ejecutar el generador
-Desde Python:
-
-```bash
-python main.py
-```
-
-Esto realiza las siguientes tareas:
-- Lee el archivo `.yal`
-- Construye las reglas del lexer
-- Genera los AFD
-- Tokeniza el archivo de entrada
-- Muestra tokens y errores léxicos
-- Genera `lexer_generado.js`
-- Genera los diagramas de estados
-
----
-
-### 2. Ejecutar el lexer generado
-Una vez creado el archivo `lexer_generado.js`, puede ejecutarse de forma independiente:
-
-```bash
-node generated/lexer_generado.js tests/entrada1.txt
-```
-
-
----
-
-## 🔄 Flujo de Funcionamiento
-
-El flujo general del proyecto es el siguiente:
-
-1. Se lee un archivo de especificación escrito en **YALex**.
-2. Se extraen las definiciones `let` y las reglas del lexer.
-3. Cada expresión se convierte a una representación interna.
-4. Se construye un **AFD** por cada regla.
-5. Se tokeniza el archivo de entrada aplicando:
-   - máximo lexema válido
-   - prioridad por orden de aparición
-6. Se reportan:
-   - tokens encontrados
-   - errores léxicos
-7. Se genera un archivo `lexer_generado.js`
-8. Se generan diagramas de transición de estados
-
----
-
-## 📤 Salida Generada
-
-Durante la ejecución, el sistema produce:
-
-### En consola
-- Definiciones `let`
-- Reglas del lexer
-- Tokens encontrados
-- Errores léxicos
-- Archivo generado
-- Diagramas generados
-
-### En archivos
-- `generated/lexer_generado.js`
-- `generated/diagrams/*.dot`
-- `generated/diagrams/*.png`
-
----
-
-## 👥 Integrantes
+## Integrantes
 
 - **Diego Ramírez**
 - **Nina Nájera**
 - **Eliazar Canastuj**
 
----
+## Descripción general
 
-## 🔗 Repositorio
+Este proyecto implementa un **generador de analizadores léxicos** a partir de especificaciones escritas en un subconjunto funcional de **YALex**. A partir de un archivo `.yal`, el sistema construye autómatas finitos deterministas para cada regla léxica, genera sus diagramas de transición y produce un archivo fuente independiente en JavaScript llamado `lexer_generado.js`.
 
-Repositorio del proyecto:
+Además, el proyecto incluye ejecución de pruebas con archivo de entrada, reporte de tokens encontrados, detección de errores léxicos y una interfaz gráfica de usuario en la versión que incluye la carpeta `ui/`.
+
+## Objetivo del proyecto
+
+Desarrollar una herramienta capaz de:
+
+- leer una especificación léxica en YALex,
+- interpretar definiciones `let` y reglas `rule tokens`,
+- convertir expresiones regulares a autómatas finitos,
+- generar analizadores léxicos funcionales,
+- reportar tokens y errores léxicos,
+- producir diagramas de estados para las reglas implementadas.
+
+## Funcionalidades implementadas
+
+### 1. Parser de especificaciones YALex
+
+El sistema analiza archivos `.yal` y extrae:
+
+- definiciones `let`,
+- nombre de la regla principal,
+- expresiones regulares asociadas a cada token,
+- acciones léxicas,
+- validaciones básicas de sintaxis.
+
+Se implementó soporte para los siguientes elementos de la especificación:
+
+- identificadores definidos previamente con `let`,
+- literales entre comillas simples y dobles,
+- clases de caracteres `[ ... ]`,
+- clases negadas `[^ ... ]`,
+- diferencia de conjuntos `expr1 # expr2`,
+- operador comodín `_`,
+- regla especial `eof`,
+- caracteres escapados como `\n`, `\t`, `\r`, `\\`, `\'`, `\"` y escapes de operadores como `\+`.
+
+También se agregó validación para detectar identificadores no definidos en reglas o expresiones.
+
+### 2. Conversión de YALex a expresión para el motor interno
+
+Las expresiones YALex se traducen a una representación compatible con el motor de expresiones regulares del proyecto. En esta etapa se resuelven:
+
+- expansión de definiciones `let`,
+- cadenas literales,
+- clases de caracteres y clases negadas,
+- diferencia de conjuntos,
+- símbolos especiales internos para distinguir operadores de símbolos literales.
+
+Esta fase evita el problema de procesar la entrada únicamente carácter por carácter sin distinguir correctamente operadores, símbolos escapados o componentes estructurales de la expresión regular.
+
+### 3. Motor de expresiones regulares
+
+El proyecto implementa un motor propio de expresiones regulares sin usar librerías externas de regex para el reconocimiento.
+
+El flujo general es el siguiente:
+
+1. tokenización de la expresión regular,
+2. inserción explícita de concatenación,
+3. conversión a notación postfix,
+4. construcción del árbol sintáctico,
+5. cálculo de `nullable`, `firstpos`, `lastpos` y `followpos`,
+6. construcción del AFD directo,
+7. minimización del autómata.
+
+De esta manera, el reconocimiento se basa en **autómatas finitos**, como exige el enunciado del proyecto.
+
+### 4. Construcción del analizador léxico
+
+A partir de las reglas definidas en YALex, el sistema construye un lexer que:
+
+- escoge el **lexema más largo**,
+- rompe empates por **prioridad según el orden de definición**,
+- permite reglas que se ignoran con acciones de tipo `skip`,
+- reconoce tokens y sus posiciones de línea y columna,
+- reporta errores léxicos.
+
+La estrategia de recuperación ante error fue ajustada para consumir únicamente el carácter inválido y continuar el análisis, evitando que se pierdan tokens válidos posteriores.
+
+### 5. Generación del archivo independiente
+
+El proyecto genera un archivo JavaScript independiente:
+
+- `generated/lexer_generado.js`
+
+Este archivo incluye:
+
+- las reglas del lexer,
+- los AFD serializados,
+- la lógica de avance de estados,
+- tokenización del texto de entrada,
+- detección de errores léxicos,
+- soporte para `EOF`.
+
+El analizador generado puede ejecutarse de manera independiente del generador.
+
+### 6. Generación de diagramas de estados
+
+Para cada regla léxica, el proyecto genera:
+
+- un archivo `.dot`,
+- y, si Graphviz está instalado, una imagen `.png`.
+
+Los diagramas se almacenan en:
+
+- `generated/diagrams/`
+
+Esto permite visualizar el AFD correspondiente a cada token implementado.
+
+### 7. Interfaz gráfica
+
+En la versión del proyecto que incluye la carpeta `ui/`, se implementó una interfaz gráfica en Python para facilitar el uso del generador. La interfaz permite:
+
+- abrir archivos `.yal`,
+- abrir archivos `.txt`,
+- guardar cambios,
+- ejecutar la generación del lexer,
+- visualizar tokens,
+- visualizar errores,
+- mostrar el archivo `lexer_generado.js`,
+- previsualizar diagramas generados.
+
+La interfaz fue diseñada con estilo oscuro y distribución tipo mini IDE para hacerla más amigable para el usuario.
+
+## Estructura general del proyecto
+
+La estructura incluye estos módulos:
+
+- `yalex_parser.py`: parser del archivo `.yal`.
+- `yalex_converter.py`: traducción de expresiones YALex al formato del motor interno.
+- `regex_engine.py`: implementación del motor de expresiones regulares y construcción del AFD.
+- `lexer_builder.py`: armado del lexer y tokenización.
+- `codegen.py`: generación del archivo JavaScript independiente.
+- `errors.py`: manejo y formateo de errores.
+- `token_utils.py`: inferencia y normalización de nombres de tokens.
+- `main.py`: ejecución por consola.
+- `tests/`: archivos de prueba.
+- `generated/`: salida generada por el sistema.
+- `ui/`: interfaz gráfica.
+
+## Flujo de funcionamiento
+
+### Entrada del generador
+
+- Un archivo `.yal` con la especificación del analizador léxico.
+
+### Salida del generador
+
+- diagramas `.dot` y `.png` de los AFD,
+- archivo fuente independiente `lexer_generado.js`.
+
+### Entrada del analizador léxico generado
+
+- un archivo de texto plano con cadenas de entrada.
+
+### Salida del analizador léxico
+
+- tokens reconocidos,
+- errores léxicos detectados con línea y columna.
+
+## Casos de prueba implementados
+
+Se trabajó con al menos los siguientes tipos de prueba:
+
+### Caso de complejidad baja
+
+Prueba de:
+
+- palabras reservadas,
+- identificadores,
+- números,
+- operador `+`,
+- asignación,
+- espacios ignorados.
+
+### Caso de complejidad media
+
+Prueba de:
+
+- operadores relacionales de uno y dos caracteres,
+- prioridad de reglas,
+- palabras reservadas,
+- paréntesis, llaves y punto y coma,
+- identificadores y números,
+- omisión de whitespace.
+
+### Caso de complejidad alta
+
+Prueba de:
+
+- diferencia de conjuntos con `#`,
+- reconocimiento de palabras formadas solo por consonantes,
+- distinción entre `CONS` e `ID`,
+- operador `:=`,
+- operador `+` escapado,
+- palabras reservadas,
+- números y espacios.
+
+### Caso adicional de error léxico
+
+Se probó una entrada con símbolo inválido en medio de tokens válidos para confirmar que:
+
+- el error se detecta correctamente,
+- se reporta con línea y columna,
+- el análisis continúa sin perder los tokens posteriores.
+
+## Cómo ejecutar el proyecto
+
+### Ejecución por consola
+
+Desde la carpeta raíz del proyecto:
+
+```bash
+python main.py
+```
+
+La ejecución por consola:
+
+1. parsea el archivo YALex configurado en `main.py`,
+2. construye el lexer,
+3. procesa el archivo de entrada,
+4. imprime tokens y errores,
+5. genera el archivo `generated/lexer_generado.js`,
+6. genera diagramas `.dot` y, si es posible, `.png`.
+
+### Ejecución de la interfaz gráfica
+
+Se puede ejecutar con:
+
+```bash
+python -m ui.app
+```
+
+En esta versión se recomienda usar un entorno con **Python de 64 bits** si la interfaz depende de PySide6.
+
+## Dependencias
+
+### Obligatorias
+
+- Python 3.x
+
+### Opcionales o recomendadas
+
+- Graphviz, para convertir automáticamente los archivos `.dot` a `.png`
+- PySide6, en la versión con interfaz gráfica
+
+## Decisiones de diseño relevantes
+
+- Se evitó el uso de librerías de expresiones regulares para el reconocimiento léxico.
+- Se usaron autómatas finitos para cumplir con la restricción principal del proyecto.
+- Se separó el generador del analizador generado para mantener independencia entre ambos.
+- Se implementó priorización por orden de regla y política de lexema más largo.
+- Se agregaron archivos de prueba representativos de baja, media y alta complejidad.
+
+## Repositorio
 
 ```bash
 https://github.com/can23384/Proyecto01_Generador-de-analizadores-l-xicos
 ```
----
 
+## Documentación del código
 
-<div align="center">
+El código está organizado por responsabilidades para facilitar su comprensión:
 
-### Proyecto académico de construcción de compiladores / lenguajes
+- parsing de la especificación,
+- conversión a regex interna,
+- construcción del autómata,
+- tokenización,
+- generación de código,
+- visualización de resultados.
 
-**Generador de Analizadores Léxicos con YALex**
+Esto permite explicar el proyecto por módulos durante la presentación y defender con claridad el flujo completo de generación.
 
-</div>
+## Observaciones finales
+
+El proyecto logra construir analizadores léxicos funcionales a partir de una especificación YALex, generar su representación por autómatas y producir un archivo fuente independiente para el análisis léxico. Además, incorpora pruebas representativas y, en su versión gráfica, una interfaz orientada a mejorar la experiencia de uso.

@@ -646,7 +646,7 @@ def replace_double_quoted_strings(regex: str, *, line: int) -> str:
                     "la cadena vacía no está soportada en esta versión del proyecto.",
                 )
 
-            out.append("".join(normalize_literal_char(c) for c in value))
+            out.append(engine_literal_sequence(value))
             i = j
             continue
 
@@ -654,7 +654,6 @@ def replace_double_quoted_strings(regex: str, *, line: int) -> str:
         i += 1
 
     return "".join(out)
-
 
 def replace_wildcard_underscore(regex: str) -> str:
     """

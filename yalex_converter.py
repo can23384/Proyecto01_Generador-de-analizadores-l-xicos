@@ -185,9 +185,9 @@ def _set_to_regex(chars, *, line: int, expr: str, fragment: str) -> str:
         )
 
     if len(chars) == 1:
-        return normalize_literal_char(chars[0])
+        return engine_literal_char(chars[0])
 
-    return "(" + "|".join(normalize_literal_char(ch) for ch in chars) + ")"
+    return "(" + "|".join(engine_literal_char(ch) for ch in chars) + ")"
 
 
 def _find_matching_bracket(text: str, pos: int):

@@ -1,0 +1,14 @@
+let number = ['0'-'9']+
+let id = ['a'-'z''A'-'Z'](['a'-'z''A'-'Z''0'-'9''_'])*
+let ws = [' ''\t''\n']+
+
+rule tokens =
+  "if"        { return IF }
+| "else"      { return ELSE }
+| number      { return NUMBER }
+| id          { return ID }
+| '\+'        { return PLUS }
+| '-'         { return MINUS }
+| '='         { return ASSIGN }
+| ws          { /* skip */ }
+| eof         { return EOF }

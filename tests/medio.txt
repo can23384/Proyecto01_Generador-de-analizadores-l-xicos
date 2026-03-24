@@ -1,0 +1,1 @@
+while (count1 <= 10) { return count1 != 0; }

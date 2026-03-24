@@ -88,8 +88,8 @@ def render_dot_files(output_dir: str = "generated/diagrams", fmt: str = "png"):
 
 
 def main():
-    yal_path = "tests/Ejemplo_basico.yal"
-    input_path = "tests/entrada1.txt"
+    yal_path = "tests/alto.yal"
+    input_path = "tests/alto.txt"
 
     try:
         spec = parse_yalex_file(yal_path)

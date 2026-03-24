@@ -1,0 +1,23 @@
+let number = ['0'-'9']+
+let id = ['a'-'z''A'-'Z'](['a'-'z''A'-'Z''0'-'9''_'])*
+let ws = [' ''\t''\n']+
+
+rule tokens =
+  "while"     { return WHILE }
+| "return"    { return RETURN }
+| "<="        { return LE }
+| ">="        { return GE }
+| "=="        { return EQEQ }
+| "!="        { return NEQ }
+| '<'         { return LT }
+| '>'         { return GT }
+| '='         { return ASSIGN }
+| '('         { return LPAREN }
+| ')'         { return RPAREN }
+| '{'         { return LBRACE }
+| '}'         { return RBRACE }
+| ';'         { return SEMI }
+| number      { return NUMBER }
+| id          { return ID }
+| ws          { /* skip */ }
+| eof         { return EOF }
